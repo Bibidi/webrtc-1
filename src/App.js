@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import io from 'socket.io-client';
 
 class App extends Component {
   constructor(props) {
@@ -6,9 +7,20 @@ class App extends Component {
 
     this.localVideoRef = React.createRef();
     this.remoteVideoRef = React.createRef();
+
+    this.socket = null;
   }
 
   componentDidMount() {
+
+    this.socket = io(
+      '/webrtcPeer',
+      {
+        path: '/webrtc',
+        query: {}
+      }
+    );
+
     const pc_config = null;
 
     // const pc_config = {
