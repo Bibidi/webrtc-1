@@ -9,6 +9,7 @@ class App extends Component {
     this.remoteVideoRef = React.createRef();
 
     this.socket = null;
+    this.candidates = [];
   }
 
   componentDidMount() {
@@ -21,20 +22,42 @@ class App extends Component {
       }
     );
 
-    const pc_config = null;
+    this.socket.on('connection-success', success => {
+      console.log(success);
+    });
 
-    // const pc_config = {
-    //   "iceServers": [
-    //     urls: 'stun:[STUN-IP]:[PORT]',
-    //     'credential': '[YOUR CREDENTIAL]',
-    //     'username': '[USERNAME]'
-    //   ]
-    // }
+    this.socket.on('offerOrAnswer', (sdp) => {
+      this.textRef.value = JSON.stringify(sdp);
+
+      this.pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    })
+
+    this.socket.on('candidate', (candidate) => {
+      // console.log('from Peer...', JSON.stringify(candidate));
+      // this.candidates = [...this.candidates, candidate];
+      this.pc.addIceCandidate(new RTCIceCandidate(candidate));
+    })
+
+    // const pc_config = null;
+
+    const pc_config = {
+      "iceServers": [
+        // urls: 'stun:[STUN-IP]:[PORT]',
+        // 'credential': '[YOUR CREDENTIAL]',
+        // 'username': '[USERNAME]'
+        {
+          urls: 'stun:stun.l.google.com:19302'
+        }
+      ]
+    }
 
     this.pc = new RTCPeerConnection(pc_config);
 
     this.pc.onicecandidate = (e) => {
-      if (e.candidate) console.log(JSON.stringify(e.candidate));
+      if (e.candidate) {
+        // console.log(JSON.stringify(e.candidate));
+        this.sendToPeer('candidate', e.candidate);
+      }
     }
 
     this.pc.oniceconnectionstatechange = (e) => {
@@ -62,36 +85,52 @@ class App extends Component {
       .catch(failure);
   }
 
+  sendToPeer = (messageType, payload) => {
+    this.socket.emit(messageType, {
+      socketID: this.socket.id,
+      payload
+    });
+  };
+
   createOffer = () => {
     console.log('Offer');
     this.pc.createOffer({ offerToReceiveVideo: 1 })
       .then(sdp => {
-        console.log(JSON.stringify(sdp));
+        // console.log(JSON.stringify(sdp));
         this.pc.setLocalDescription(sdp);
-      }, e => { })
-  }
+
+        this.sendToPeer('offerOrAnswer', sdp);
+      });
+  };
 
   setRemoteDescription = () => {
     const desc = JSON.parse(this.textRef.value);
 
     this.pc.setRemoteDescription(new RTCSessionDescription(desc));
-  }
+  };
 
   createAnswer = () => {
     console.log('Answer');
     this.pc.createAnswer({ offerToReceiveVideo: 1 })
       .then(sdp => {
-        console.log(JSON.stringify(sdp))
+        // console.log(JSON.stringify(sdp))
         this.pc.setLocalDescription(sdp);
-      }, e => { })
-  }
+
+        this.sendToPeer('offerOrAnswer', sdp);
+      });
+  };
 
   addCandidate = () => {
-    const candidate = JSON.parse(this.textRef.value);
-    console.log('Adding candidate:', candidate);
+    // const candidate = JSON.parse(this.textRef.value);
+    // console.log('Adding candidate:', candidate);
 
-    this.pc.addIceCandidate(new RTCIceCandidate(candidate));
-  }
+    // this.pc.addIceCandidate(new RTCIceCandidate(candidate));
+
+    this.candidates.forEach(candidate => {
+      console.log(JSON.stringify(candidate));
+      this.pc.addIceCandidate(new RTCIceCandidate(candidate));
+    });
+  };
 
   render() {
     return (
@@ -111,13 +150,14 @@ class App extends Component {
           ref={this.remoteVideoRef}
           autoPlay></video>
 
+        <br />
         <button onClick={this.createOffer}>Offer</button>
         <button onClick={this.createAnswer}>Answer</button>
         <br />
         <textarea ref={ref => { this.textRef = ref }} />
-        <br />
-        <button onClick={this.setRemoteDescription}>Set Remote Desc</button>
-        <button onClick={this.addCandidate}>Add Candidate</button>
+        {/* <br /> */}
+        {/* <button onClick={this.setRemoteDescription}>Set Remote Desc</button>
+        <button onClick={this.addCandidate}>Add Candidate</button> */}
       </div>
     );
   }
